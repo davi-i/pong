@@ -18,25 +18,37 @@
   <script >
     let side = null;
 
+    const socket = io();
+
     function chooseSide() {
       const input = prompt('Choose your side (left or right):');
-      if (input === 'left' || input === 'right') {
-        side = input;
-      } else {
+      socket.emit('enterGame', input);
+    }
+
+    socket.on('enterGame', (data) => {
+      if (data.code == 0) {
+        alert(`You successfully entered the game as the ${data.side} player`);
+        side = data.side;
+      } else if (data.code == 1) {
+        alert(`There is already a ${data.side} player`);
+        chooseSide();
+      } else if (data.code == 2) {
         alert('Invalid choice. Please choose "left" or "right".');
         chooseSide();
+      } else {
+      alert('what?');
       }
-    }
+    });
 
     chooseSide();
 
 
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
-    const socket = io();
 
     const paddleHeight = 100;
     const paddleWidth = 10;
+    const paddleGap = 5;
 
     let leftPaddleY = (canvas.height - paddleHeight) / 2;
     let rightPaddleY = (canvas.height - paddleHeight) / 2;
@@ -49,18 +61,8 @@
       }
     });
 
-    // canvas.addEventListener('mousemove', (event) => {
-    //   const mouseY = event.clientY - canvas.getBoundingClientRect().top;
-    //   socket.emit('updatePaddle', { player: side, y: mouseY - paddleHeight / 2 });
-    // });
-
     canvas.addEventListener('mousemove', (event) => {
       const mouseY = event.clientY - canvas.getBoundingClientRect().top;
-      if (side === 'left') {
-        leftPaddleY = mouseY - paddleHeight / 2;
-      } else {
-        rightPaddleY = mouseY - paddleHeight / 2;
-      }
       socket.emit('updatePaddle', { player: side, y: mouseY - paddleHeight / 2 });
     });
 
@@ -70,8 +72,8 @@
 
       // Desenhar paddles
       ctx.fillStyle = 'white';
-      ctx.fillRect(0, leftPaddleY, paddleWidth, paddleHeight);
-      ctx.fillRect(canvas.width - paddleWidth, rightPaddleY, paddleWidth, paddleHeight);
+      ctx.fillRect(paddleGap, leftPaddleY, paddleWidth, paddleHeight);
+      ctx.fillRect(canvas.width - paddleWidth - paddleGap, rightPaddleY, paddleWidth, paddleHeight);
 
       requestAnimationFrame(draw);
     }
