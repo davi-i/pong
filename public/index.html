@@ -16,6 +16,11 @@
   <canvas id="gameCanvas" width="800" height="600"></canvas>
   <script src="/socket.io/socket.io.js"></script>
   <script >
+    const canvas = document.getElementById("gameCanvas");
+    const boardSize = {
+      width: canvas.width,
+      height: canvas.height,
+    };
     let side = null;
 
     const socket = io();
@@ -27,7 +32,6 @@
 
     socket.on('enterGame', (data) => {
       if (data.code == 0) {
-        alert(`You successfully entered the game as the ${data.side} player`);
         side = data.side;
       } else if (data.code == 1) {
         alert(`There is already a ${data.side} player`);
@@ -35,50 +39,86 @@
       } else if (data.code == 2) {
         alert('Invalid choice. Please choose "left" or "right".');
         chooseSide();
-      } else {
-      alert('what?');
       }
     });
 
     chooseSide();
 
 
-    const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
 
-    const paddleHeight = 100;
-    const paddleWidth = 10;
-    const paddleGap = 5;
-
-    let leftPaddleY = (canvas.height - paddleHeight) / 2;
-    let rightPaddleY = (canvas.height - paddleHeight) / 2;
+    let leftPaddle;
+    let rightPaddle;
 
     socket.on('updatePaddle', (data) => {
-      if (data.player === 'left') {
-        leftPaddleY = data.y;
-      } else {
-        rightPaddleY = data.y;
-      }
+      leftPaddle = data.leftPaddle;
+      rightPaddle = data.rightPaddle;
     });
 
-    canvas.addEventListener('mousemove', (event) => {
-      const mouseY = event.clientY - canvas.getBoundingClientRect().top;
-      socket.emit('updatePaddle', { player: side, y: mouseY - paddleHeight / 2 });
-    });
+    let ball = {
+      direction: {
+        x: 0,
+        y: 0,
+      },
+      speed: 0,
+      position: {
+        x: boardSize.width / 2,
+        y: boardSize.height / 2,
+      },
+      radius: 10
+    };
 
+    let score;
+
+    socket.on('updateBall', (newBall) => {
+      ball = newBall;
+    });
 
     function draw() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // Desenhar paddles
       ctx.fillStyle = 'white';
-      ctx.fillRect(paddleGap, leftPaddleY, paddleWidth, paddleHeight);
-      ctx.fillRect(canvas.width - paddleWidth - paddleGap, rightPaddleY, paddleWidth, paddleHeight);
+      // Draw circle
+      ctx.beginPath();
+      ctx.arc(ball.position.x, ball.position.y, ball.radius, 0, 2 * Math.PI);
+      ctx.stroke();
+      ctx.fill();
+
+      ctx.strokeStyle = 'white';
+      ctx.setLineDash([8, 6]);
+      ctx.beginPath();
+      ctx.moveTo(boardSize.width / 2, 0);
+      ctx.lineTo(boardSize.width / 2, boardSize.height);
+      ctx.stroke();
+
+      // Desenhar paddles
+      ctx.font = "30px Arial";
+      ctx.fillStyle = 'deepskyblue';
+      ctx.fillRect(leftPaddle.x, leftPaddle.y, leftPaddle.width, leftPaddle.height);
+      ctx.fillText(score.left, boardSize.width / 4, boardSize.height / 4);
+
+      ctx.fillStyle = 'orangered';
+      ctx.fillRect(rightPaddle.x, rightPaddle.y, rightPaddle.width, rightPaddle.height);
+      ctx.fillText(score.right, 3 * boardSize.width / 4, boardSize.height / 4);
 
       requestAnimationFrame(draw);
     }
 
-    draw();
+    socket.on('startGame', (data) => {
+      leftPaddle = data.leftPaddle;
+      rightPaddle = data.rightPaddle;
+      score = data.score;
+      draw();
+
+      canvas.addEventListener('mousemove', (event) => {
+        const mouseY = event.clientY - canvas.getBoundingClientRect().top;
+        socket.emit('updatePaddle', { player: side, y: mouseY - leftPaddle.height / 2 });
+      });
+    });
+
+    socket.on('updateScore', (newScore) => {
+      score = newScore;
+    });
 
   </script>
 </body>
