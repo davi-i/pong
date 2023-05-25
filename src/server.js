@@ -30,19 +30,21 @@ const paddleGap = 5;
 const paddleHeight = 100;
 const paddleWidth = 10;
 
-let leftPaddle = {
+const leftPaddleStart = {
   x: paddleGap,
   y: (boardSize.height - paddleHeight) / 2,
   width: paddleWidth,
   height: paddleHeight,
 };
+let leftPaddle = leftPaddleStart;
 
-let rightPaddle = {
+const rightPaddleStart = {
   x: boardSize.width - paddleWidth - paddleGap,
   y: (boardSize.height - paddleHeight) / 2,
   width: paddleWidth,
   height: paddleHeight,
 };
+let rightPaddle = rightPaddleStart;
 
 let score = {
   left: 0,
@@ -54,48 +56,53 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     console.log('user disconnected');
-    if (leftPlayer == socket) {
+    if (leftPlayer == socket.id) {
       leftPlayer = null;
-    } else if (rightPlayer == socket) {
+    } else if (rightPlayer == socket.id) {
       rightPlayer = null;
+    } else {
+      return;
     }
+    leftPaddle = leftPaddleStart;
+    rightPaddle = rightPaddleStart;
+    score = { left: 0, right: 0 };
+    io.emit('playerDisconnect');
   });
 
   function enterGame(side) {
     if (side == 'left') {
       if (leftPlayer) {
-        return 1;
+        return 'sideTaken';
       }
-      leftPlayer = socket;
-      if (rightPlayer) {
-        io.emit('startGame', { leftPaddle, rightPaddle, score });
-        createBall();
-      }
+      leftPlayer = socket.id;
     } else if (side == 'right') {
       if (rightPlayer) {
-        return 1;
+        return 'sideTaken';
       }
-      rightPlayer = socket;
-      if (leftPlayer) {
-        io.emit('startGame', { leftPaddle, rightPaddle, score });
-        createBall();
-      }
+      rightPlayer = socket.id;
     } else {
-      return 2;
+      return 'invalidSide';
     }
-    return 0;
+    if (leftPlayer && rightPlayer) {
+      io.emit('startGame', { leftPaddle, rightPaddle, score });
+      createBall();
+      updateBall();
+    }
+    return 'entered';
   }
 
   socket.on('enterGame', (side) => {
-    code = enterGame(side);
-    socket.emit('enterGame', { side, code });
+    result = enterGame(side);
+    socket.emit('enterGame', { side, result });
   });
 
   socket.on('updatePaddle', (data) => {
-    if (data.player === 'left') {
+    if (socket.id == leftPlayer) {
       leftPaddle.y = data.y;
-    } else if (data.player === 'right') {
+    } else if (socket.id == rightPlayer) {
       rightPaddle.y = data.y;
+    } else {
+      return;
     }
     io.emit('updatePaddle', {
       leftPaddle,
@@ -125,12 +132,13 @@ function updateBall() {
     ball.position.x += (ball.speed * ball.direction.x);
     ball.position.y += (ball.speed * ball.direction.y);
     checkCollision();
-    io.emit('updateBall', ball);
-    updateBall();
+    if (leftPlayer && rightPlayer) {
+      io.emit('updateBall', ball);
+      updateBall();
+    }
   });
 }
 
-updateBall();
 
 function checkCollision() {
   if (ball.position.y <= 0 + ball.radius) {

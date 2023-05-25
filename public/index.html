@@ -1,60 +1,156 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PONG</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
   <style>
+    body {
+      font-family: 'Press Start 2P', cursive;
+    }
+
     canvas {
       display: block;
       margin: 0 auto;
       background-color: black;
+      background-image: url(space.jpg);
+      background-repeat: repeat;
+    }
+
+    #game {
+      position: relative;
+      text-align: center;
+    }
+
+    button {
+      padding: 10px 20px;
+      background-color: #f44336;
+      color: white;
+      border: none;
+      cursor: pointer;
+      font-size: 16px;
+    }
+
+    #startButton,
+    #chooseSide,
+    #waitingServer,
+    #waitingPlayer {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+    }
+
+    #startButton {
+      top: 400px;
+    }
+
+    #chooseSide {
+      top: 350px;
+      color: white;
+    }
+
+    #waitingServer,
+    #waitingPlayer {
+      top: 350px;
+      color: white
+    }
+
+    h1 {
+      color: white;
+      position: absolute;
+      top: 100px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 64px;
+      font-weight: bold;
+    }
+
+    .hidden {
+      display: none;
     }
   </style>
 </head>
+
 <body>
-  <canvas id="gameCanvas" width="800" height="600"></canvas>
+  <div id="game">
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    <div id="menu">
+      <h1>Pong</h1>
+      <button id="startButton" class="button">Start game</button>
+      <div id="chooseSide" class="hidden">
+        <h2>Choose a side:</h2>
+        <button id="leftButton">Left</button>
+        <button id="rightButton">Right</button>
+      </div>
+      <div id="waitingServer" class="hidden">
+        <h2>Waiting for server...</h2>
+      </div>
+      <div id="waitingPlayer" class="hidden">
+        <h2>Waiting for other player...</h2>
+      </div>
+    </div>
+  </div>
+
   <script src="/socket.io/socket.io.js"></script>
-  <script >
+  <script>
+    const socket = io();
+
     const canvas = document.getElementById("gameCanvas");
+    const menu = document.getElementById("menu");
+    const startButton = document.getElementById('startButton');
+    const chooseSide = document.getElementById('chooseSide');
+    const leftButton = document.getElementById('leftButton');
+    const rightButton = document.getElementById('rightButton');
+    const waitingServer = document.getElementById('waitingServer');
+    const waitingPlayer = document.getElementById('waitingPlayer');
+
+    startButton.addEventListener('click', () => {
+      startButton.classList.add('hidden');
+      chooseSide.classList.remove('hidden');
+    });
+
+    leftButton.addEventListener('click', () => {
+      socket.emit('enterGame', 'left');
+      chooseSide.classList.add('hidden');
+      waitingServer.classList.remove('hidden');
+    });
+
+    rightButton.addEventListener('click', () => {
+      socket.emit('enterGame', 'right');
+      chooseSide.classList.add('hidden');
+      waitingServer.classList.remove('hidden');
+    });
+
     const boardSize = {
       width: canvas.width,
       height: canvas.height,
     };
     let side = null;
 
-    const socket = io();
-
-    function chooseSide() {
-      const input = prompt('Choose your side (left or right):');
-      socket.emit('enterGame', input);
-    }
-
     socket.on('enterGame', (data) => {
-      if (data.code == 0) {
+      if (data.result == 'entered') {
         side = data.side;
-      } else if (data.code == 1) {
+        waitingServer.classList.add('hidden');
+        waitingPlayer.classList.remove('hidden');
+      } else if (data.result == 'sideTaken') {
         alert(`There is already a ${data.side} player`);
-        chooseSide();
-      } else if (data.code == 2) {
+        waitingServer.classList.add('hidden');
+        startButton.classList.remove('hidden');
+      } else if (data.result == 'invalidSide') {
         alert('Invalid choice. Please choose "left" or "right".');
-        chooseSide();
+        waitingServer.classList.add('hidden');
+        startButton.classList.remove('hidden');
       }
     });
-
-    chooseSide();
-
 
     const ctx = canvas.getContext('2d');
 
     let leftPaddle;
     let rightPaddle;
-
-    socket.on('updatePaddle', (data) => {
-      leftPaddle = data.leftPaddle;
-      rightPaddle = data.rightPaddle;
-    });
-
     let ball = {
       direction: {
         x: 0,
@@ -67,12 +163,9 @@
       },
       radius: 10
     };
-
     let score;
 
-    socket.on('updateBall', (newBall) => {
-      ball = newBall;
-    });
+    let lastAnimationId;
 
     function draw() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -92,7 +185,7 @@
       ctx.stroke();
 
       // Desenhar paddles
-      ctx.font = "30px Arial";
+      ctx.font = '30px "Press Start 2P", cursive';
       ctx.fillStyle = 'deepskyblue';
       ctx.fillRect(leftPaddle.x, leftPaddle.y, leftPaddle.width, leftPaddle.height);
       ctx.fillText(score.left, boardSize.width / 4, boardSize.height / 4);
@@ -101,25 +194,45 @@
       ctx.fillRect(rightPaddle.x, rightPaddle.y, rightPaddle.width, rightPaddle.height);
       ctx.fillText(score.right, 3 * boardSize.width / 4, boardSize.height / 4);
 
-      requestAnimationFrame(draw);
+      lastAnimationId = requestAnimationFrame(draw);
     }
 
     socket.on('startGame', (data) => {
       leftPaddle = data.leftPaddle;
       rightPaddle = data.rightPaddle;
       score = data.score;
+
+      menu.classList.add("hidden");
       draw();
+
 
       canvas.addEventListener('mousemove', (event) => {
         const mouseY = event.clientY - canvas.getBoundingClientRect().top;
-        socket.emit('updatePaddle', { player: side, y: mouseY - leftPaddle.height / 2 });
+        socket.emit('updatePaddle', {player: side, y: mouseY - leftPaddle.height / 2});
       });
+    });
+
+    socket.on('updatePaddle', (data) => {
+      leftPaddle = data.leftPaddle;
+      rightPaddle = data.rightPaddle;
+    });
+
+    socket.on('updateBall', (newBall) => {
+      ball = newBall;
     });
 
     socket.on('updateScore', (newScore) => {
       score = newScore;
     });
 
+    socket.on('playerDisconnect', () => {
+      alert('Opponent disconnected');
+      cancelAnimationFrame(lastAnimationId);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      menu.classList.remove('hidden');
+    });
+
   </script>
 </body>
+
 </html>
