@@ -171,8 +171,8 @@ function checkCollision() {
   if (ball.position.x >= boardSize.width) {
     score.left += 1;
     if (score.left >= winScore) {
-      leftPlayer.emit('defeat');
-      rightPlayer.emit('victory');
+      leftPlayer.emit('victory');
+      rightPlayer.emit('defeat');
       reset();
       leftPlayer = null;
       rightPlayer = null;
