@@ -38,7 +38,8 @@
     #startButton,
     #chooseSide,
     #waitingServer,
-    #waitingPlayer {
+    #waitingPlayer,
+    #result {
       position: absolute;
       left: 50%;
       transform: translateX(-50%);
@@ -48,13 +49,10 @@
       top: 400px;
     }
 
-    #chooseSide {
-      top: 350px;
-      color: white;
-    }
-
+    #chooseSide,
     #waitingServer,
-    #waitingPlayer {
+    #waitingPlayer,
+    #result {
       top: 350px;
       color: white
     }
@@ -92,6 +90,10 @@
       <div id="waitingPlayer" class="hidden">
         <h2>Waiting for other player...</h2>
       </div>
+      <div id="result" class="hidden">
+        <h2 id="resultText"></h2>
+        <button id="reset">Reset</button>
+      </div>
     </div>
   </div>
 
@@ -107,6 +109,9 @@
     const rightButton = document.getElementById('rightButton');
     const waitingServer = document.getElementById('waitingServer');
     const waitingPlayer = document.getElementById('waitingPlayer');
+    const result = document.getElementById('result');
+    const resultText = document.getElementById('resultText');
+    const resetButton = document.getElementById('reset');
 
     startButton.addEventListener('click', () => {
       startButton.classList.add('hidden');
@@ -123,6 +128,11 @@
       socket.emit('enterGame', 'right');
       chooseSide.classList.add('hidden');
       waitingServer.classList.remove('hidden');
+    });
+
+    resetButton.addEventListener('click', () => {
+      result.classList.add('hidden');
+      startButton.classList.remove('hidden');
     });
 
     const boardSize = {
@@ -225,11 +235,31 @@
       score = newScore;
     });
 
-    socket.on('playerDisconnect', () => {
-      alert('Opponent disconnected');
+    function reset() {
       cancelAnimationFrame(lastAnimationId);
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       menu.classList.remove('hidden');
+    }
+
+    socket.on('playerDisconnect', () => {
+      alert('Opponent disconnected');
+      reset();
+    });
+
+    function showResult(text) {
+      reset()
+      resultText.textContent = text;
+      waitingPlayer.classList.add('hidden');
+      result.classList.remove('hidden');
+    }
+
+    socket.on('victory', () => {
+      showResult("Congratulations! You won");
+    });
+
+    socket.on('defeat', () => {
+      reset();
+      showResult("You lost...");
     });
 
   </script>

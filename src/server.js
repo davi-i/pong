@@ -13,6 +13,8 @@ const boardSize = {
   height: 600,
 };
 
+const winScore = 10;
+
 let ball = {
   direction: {
     x: 0,
@@ -56,17 +58,15 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     console.log('user disconnected');
-    if (leftPlayer == socket.id) {
+    if (leftPlayer?.id == socket.id) {
       leftPlayer = null;
-    } else if (rightPlayer == socket.id) {
+      rightPlayer?.emit('playerDisconnect');
+      reset();
+    } else if (rightPlayer?.id == socket.id) {
       rightPlayer = null;
-    } else {
-      return;
+      leftPlayer?.emit('playerDisconnect');
+      reset();
     }
-    leftPaddle = leftPaddleStart;
-    rightPaddle = rightPaddleStart;
-    score = { left: 0, right: 0 };
-    io.emit('playerDisconnect');
   });
 
   function enterGame(side) {
@@ -74,12 +74,12 @@ io.on('connection', (socket) => {
       if (leftPlayer) {
         return 'sideTaken';
       }
-      leftPlayer = socket.id;
+      leftPlayer = socket;
     } else if (side == 'right') {
       if (rightPlayer) {
         return 'sideTaken';
       }
-      rightPlayer = socket.id;
+      rightPlayer = socket;
     } else {
       return 'invalidSide';
     }
@@ -97,9 +97,9 @@ io.on('connection', (socket) => {
   });
 
   socket.on('updatePaddle', (data) => {
-    if (socket.id == leftPlayer) {
+    if (socket.id == leftPlayer?.id) {
       leftPaddle.y = data.y;
-    } else if (socket.id == rightPlayer) {
+    } else if (socket.id == rightPlayer?.id) {
       rightPaddle.y = data.y;
     } else {
       return;
@@ -127,8 +127,17 @@ function createBall() {
   ball.position.y = boardSize.height / 2;
 }
 
+let timerId;
+
+function reset() {
+  clearTimeout(timerId);
+  leftPaddle = leftPaddleStart;
+  rightPaddle = rightPaddleStart;
+  score = { left: 0, right: 0 };
+}
+
 function updateBall() {
-  setTimeout(() => {
+  timerId = setTimeout(() => {
     ball.position.x += (ball.speed * ball.direction.x);
     ball.position.y += (ball.speed * ball.direction.y);
     checkCollision();
@@ -139,7 +148,6 @@ function updateBall() {
   });
 }
 
-
 function checkCollision() {
   if (ball.position.y <= 0 + ball.radius) {
     ball.direction.y *= -1;
@@ -149,11 +157,28 @@ function checkCollision() {
   }
   if (ball.position.x <= 0) {
     score.right += 1;
-    io.emit('updateScore', score);
+    if (score.right >= winScore) {
+      leftPlayer.emit('defeat');
+      rightPlayer.emit('victory');
+      reset();
+      leftPlayer = null;
+      rightPlayer = null;
+    } else {
+      io.emit('updateScore', score);
+    }
     createBall();
   }
   if (ball.position.x >= boardSize.width) {
     score.left += 1;
+    if (score.left >= winScore) {
+      leftPlayer.emit('defeat');
+      rightPlayer.emit('victory');
+      reset();
+      leftPlayer = null;
+      rightPlayer = null;
+    } else {
+      io.emit('updateScore', score);
+    }
     io.emit('updateScore', score);
     createBall();
   }
